@@ -1,7 +1,7 @@
 # Minimalist GUI that calls youtube-dl
 
 <p align="center">
-<img src="./img/mk_quicker_youtubedl_icon.png">
+<img src="./img/mk_quicker_youtubedl_icon.png" width=300>
 </p>
 
 ### HOW
