@@ -1,4 +1,6 @@
 import sys
+import os
+import platform
 import subprocess
 import logging
 from pathlib import Path, PureWindowsPath
@@ -6,6 +8,7 @@ from PySide2 import QtWidgets, QtGui
 
 
 logging.basicConfig(level=logging.DEBUG)
+_OS = platform.system()
 
 
 class mk_QuickerYoutubeDL(QtWidgets.QWidget):
@@ -25,8 +28,13 @@ class mk_QuickerYoutubeDL(QtWidgets.QWidget):
 
     def create_widgets(self, drive_combox_box_index, audio_centric):
         self.drive_combo_box = QtWidgets.QComboBox()
-        self.drive_combo_box.addItems(('C:', 'D:', 'E:', 'F:', 'G:'))
-        self.drive_combo_box.setCurrentIndex(drive_combox_box_index)
+        
+        if _OS == "Windows":
+            self.drive_combo_box.addItems(('C:', 'D:', 'E:', 'F:', 'G:'))
+            self.drive_combo_box.setCurrentIndex(drive_combox_box_index)
+        else:
+            self.drive_combo_box.setDisabled(True)
+
 
         self.audio_only_cb = QtWidgets.QCheckBox('Audio Only')
         self.audio_only_cb.setChecked(audio_centric)
@@ -52,7 +60,10 @@ class mk_QuickerYoutubeDL(QtWidgets.QWidget):
         self.show_results_btn.clicked.connect(self.show_results)
 
     def prepare_destination(self, drive):
-        dst_dir = Path('{}\{}'.format(drive, mk_QuickerYoutubeDL._TMP_DIR))
+        if _OS == "Windows":
+            dst_dir = Path('{}/{}'.format(drive, mk_QuickerYoutubeDL._TMP_DIR))
+        elif _OS == "Darwin":
+            dst_dir = Path(os.getenv("HOME")) / mk_QuickerYoutubeDL._TMP_DIR
         # Make sure the output folder exists
         if not dst_dir.exists():
             try:
@@ -66,10 +77,16 @@ class mk_QuickerYoutubeDL(QtWidgets.QWidget):
         chosen_drive = self.drive_combo_box.currentText()
         dst_dir = self.prepare_destination(chosen_drive)
         # Show explorer at dst_dir
-        subprocess.Popen(['explorer', str(PureWindowsPath(dst_dir))])
+        if _OS == "Windows":
+            subprocess.Popen(['explorer', str(PureWindowsPath(dst_dir))])
+        elif _OS == "Darwin":
+            subprocess.Popen(['open', '-R', dst_dir.as_posix()])
 
     def parse_url(self):
-        chosen_drive = self.drive_combo_box.currentText()
+        if _OS == "Windows":
+            chosen_drive = self.drive_combo_box.currentText()
+        else:
+            chosen_drive = None
         pasted_url = self.url_le.text()
         audio_only = self.audio_only_cb.isChecked()
 
@@ -79,7 +96,7 @@ class mk_QuickerYoutubeDL(QtWidgets.QWidget):
     def do_youtubedl(self, drive, url, audio_only=False):
         """
         :param str url:
-        :param str drive:
+        :param char drive: "C:", "D:", etc.
         """
         dst_dir = self.prepare_destination(drive)
 
@@ -96,10 +113,17 @@ class mk_QuickerYoutubeDL(QtWidgets.QWidget):
             
             if not playlist_mode:
                 # Single video
-                dst_dir = "{}\%(title)s.%(ext)s".format(str(PureWindowsPath(dst_dir)))    
+                if _OS == "Windows":
+                    dst_dir = r"{}\%(title)s.%(ext)s".format(str(PureWindowsPath(dst_dir)))
+                else:
+                    dst_dir = "{}/%(title)s.%(ext)s".format(dst_dir.as_posix())
+
             else:
                 # Video playlist
-                dst_dir = "{}\%(playlist_index)s-%(title)s.%(ext)s".format(str(PureWindowsPath(dst_dir)))
+                if _OS == "Windows":
+                    dst_dir = r"{}\%(playlist_index)s-%(title)s.%(ext)s".format(str(PureWindowsPath(dst_dir)))
+                else:
+                    dst_dir = "{}/%(playlist_index)s-%(title)s.%(ext)s".format(dst_dir.as_posix())
 
             if audio_only:
                 youtubedl_cmd.extend(
@@ -130,13 +154,9 @@ if __name__ == '__main__':
 
     app = QtWidgets.QApplication()
 
-    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        # Called from .exe
-        # mk_QuickerYoutubeDLInst = mk_QuickerYoutubeDL()  # default drive
-        mk_QuickerYoutubeDLInst = mk_QuickerYoutubeDL(audio_centric=True)  # for Hue
-    else:
-        # Devving
-        mk_QuickerYoutubeDLInst = mk_QuickerYoutubeDL()  # set to G: drive
+    # if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    #     # Called from .exe
 
+    mk_QuickerYoutubeDLInst = mk_QuickerYoutubeDL()
     mk_QuickerYoutubeDLInst.show()
     sys.exit(app.exec_())
